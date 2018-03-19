@@ -31,13 +31,10 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 
 	fmt.Printf("Schedule: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 
-	// All ntasks tasks have to be scheduled on workers. Once all tasks
-	// have completed successfully, schedule() should return.
-	//
-	// Your code here (Part III, Part IV).
-	//
-
-	//log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// 1) Any variables share in the Goroutine need the `mutex.Lock()`
+	// 2) How to use the mutex? `https://tour.golang.org/concurrency/9`
+	// 3) `Sync.wait` is also the option
+	
 	log.Println("------------------------------------------------")
 	log.Println(jobName, mapFiles, nReduce, phase)
 	log.Println("------------------------------------------------")

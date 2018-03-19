@@ -10,7 +10,7 @@ import (
 
 func doMap(
 	jobName string, // the name of the MapReduce job
-	mapTask int, // which map task this is
+	mapTask int,    // which map task this is
 	inFile string,
 	nReduce int, // the number of reduce task that will be run ("R" in the paper)
 	mapF func(filename string, contents string) []KeyValue,
@@ -58,7 +58,9 @@ func doMap(
 	// Your code here (Part I).
 	//
 
-	// ***Each mapTask will 1 file and produce nReduce intermediate files***
+	// 1) Each mapTask will 1 file and produce nReduce intermediate files
+	// 2) Create the new file and append to the file
+
 	log.Println("[doMap] parameters", jobName, mapTask, inFile, nReduce)
 
 	// 1) read file
@@ -87,7 +89,6 @@ func doMap(
 			m[outFileName] = append(m[outFileName], kv)
 		}
 	}
-
 
 	// 4) write the each mapping to file
 	for outFileName, kvs := range m {
