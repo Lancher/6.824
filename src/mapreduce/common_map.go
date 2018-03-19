@@ -1,7 +1,11 @@
 package mapreduce
 
 import (
+	"io/ioutil"
 	"hash/fnv"
+	"log"
+	"encoding/json"
+	"os"
 )
 
 func doMap(
@@ -53,6 +57,60 @@ func doMap(
 	//
 	// Your code here (Part I).
 	//
+
+	// ***Each mapTask will 1 file and produce nReduce intermediate files***
+	log.Println("[doMap] parameters", jobName, mapTask, inFile, nReduce)
+
+	// 1) read file
+	b, err := ioutil.ReadFile(inFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s := string(b)
+
+	// 2) pass to mapF()
+	kvs := mapF(inFile, s)
+
+	// 3) iterate the slice
+	m := make(map[string][]KeyValue)
+	for _, kv := range kvs {
+
+		// generate outFile
+		r := ihash(kv.Key) % nReduce
+		outFileName := reduceName(jobName, mapTask, r)
+
+		// check if key exist
+		if _, ok := m[outFileName]; ok {
+			m[outFileName] = append(m[outFileName], kv)
+		} else {
+			m[outFileName] = []KeyValue{}
+			m[outFileName] = append(m[outFileName], kv)
+		}
+	}
+
+
+	// 4) write the each mapping to file
+	for outFileName, kvs := range m {
+		// new file
+		outFile, err := os.Create(outFileName)
+		outFile.Close()
+
+		// append to file
+		outFile, err = os.OpenFile(outFileName, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		enc := json.NewEncoder(outFile)
+		for _, kv := range kvs {
+			err := enc.Encode(&kv)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		outFile.Close()
+	}
+
 }
 
 func ihash(s string) int {

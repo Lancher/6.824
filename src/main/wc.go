@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"mapreduce"
 	"os"
+	"log"
+	"strconv"
+	"bytes"
 )
 
 //
@@ -14,7 +17,35 @@ import (
 // of key/value pairs.
 //
 func mapF(filename string, contents string) []mapreduce.KeyValue {
-	// Your code here (Part II).
+	var kvs [] mapreduce.KeyValue
+
+
+	var words [] string
+	var buffer bytes.Buffer
+
+	// strip the word
+	for _, b := range contents {
+		if 48 <= b && b <= 57 ||  65 <= b && b <= 90 || 97 <= b && b <= 122{
+			buffer.WriteByte(byte(b))
+		} else {
+			word := buffer.String()
+			if 0 < len(word) {
+				words = append(words, word)
+			}
+			buffer.Reset()
+		}
+	}
+	word := buffer.String()
+	if 0 < len(word) {
+		words = append(words, word)
+	}
+
+	// append to slice
+	for _, word := range words{
+		kv := mapreduce.KeyValue{Key: word, Value: "1"}
+		kvs = append(kvs, kv)
+	}
+	return kvs
 }
 
 //
@@ -23,7 +54,15 @@ func mapF(filename string, contents string) []mapreduce.KeyValue {
 // any map task.
 //
 func reduceF(key string, values []string) string {
-	// Your code here (Part II).
+	cnt := 0
+	for _, s := range values {
+		i, err := strconv.Atoi(s)
+		if err != nil {
+			log.Fatal(err)
+		}
+		cnt += i
+	}
+	return strconv.Itoa(cnt)
 }
 
 // Can be run in 3 ways:

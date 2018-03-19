@@ -1,6 +1,12 @@
 package mapreduce
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"time"
+	"sync"
+	"log"
+)
 
 //
 // schedule() starts and waits for all tasks in the given phase (mapPhase
@@ -30,5 +36,179 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	//
 	// Your code here (Part III, Part IV).
 	//
-	fmt.Printf("Schedule: %v done\n", phase)
+
+	//log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Println("------------------------------------------------")
+	log.Println(jobName, mapFiles, nReduce, phase)
+	log.Println("------------------------------------------------")
+
+	switch phase {
+
+	// *****map*****
+	case mapPhase:
+		// variables
+		ntasks = len(mapFiles)
+		n_other = nReduce
+		taskState := SafeState{v: make(map[string]string)}
+		taskStateCheckTimeoutSec := 1
+		taskStateCheckTimeoutChan := make(chan bool, 1)
+		workerChan := make(chan string, 1000)
+
+		// initialize
+		for t := 0; t < ntasks; t++ {
+			taskState.Set(strconv.Itoa(t), "idle")
+		}
+
+		// goroutine start
+		go func() {
+			time.Sleep(time.Duration(taskStateCheckTimeoutSec) * time.Second)
+			taskStateCheckTimeoutChan <- true
+		}()
+		go func() {
+			for {
+				select {
+				case worker := <-registerChan:
+					workerChan <- worker
+				}
+			}
+		}()
+
+		// ioloop start
+		mapLoop:
+		for {
+			select {
+			case worker := <- workerChan:
+				for t := 0; t < ntasks; t++ {
+					task := strconv.Itoa(t)
+					if taskState.Get(task) == "idle" {
+						taskState.Set(task, "waiting")
+						args := DoTaskArgs{JobName: jobName, File: mapFiles[t],
+						Phase: mapPhase, TaskNumber: t, NumOtherPhase: n_other}
+
+						// rpc:
+						// 1) the worker may have executed it but the reply was lost
+						// 2) the worker may still be executing but the master's RPC timed out
+						go func() {
+							taskState.Set(task, "running")
+							suc := call(worker, "Worker.DoTask", args, nil)
+							if suc {
+								taskState.Set(task, "done")
+							} else {
+								taskState.Set(task, "idle")
+							}
+							registerChan <- worker
+						}()
+						break
+					}
+				}
+			case <- taskStateCheckTimeoutChan:
+				counter := 0
+				for t := 0; t < ntasks; t++ {
+					task := strconv.Itoa(t)
+					if taskState.Get(task) == "done" {
+						counter ++
+					}
+				}
+				if counter == ntasks {
+					break mapLoop
+				}
+				go func() {
+					time.Sleep(time.Duration(taskStateCheckTimeoutSec) * time.Second)
+					taskStateCheckTimeoutChan <- true
+				}()
+			}
+		}
+
+	// *****reduce*****
+	case reducePhase:
+		// variables
+		ntasks = nReduce
+		n_other = len(mapFiles)
+		taskState := SafeState{v: make(map[string]string)}
+		taskStateCheckTimeoutSec := 1
+		taskStateCheckTimeoutChan := make(chan bool, 1)
+		workerChan := make(chan string, 1000)
+
+		// initialize
+		for t := 0; t < ntasks; t++ {
+			taskState.Set(strconv.Itoa(t), "idle")
+		}
+
+		// goroutine start
+		go func() {
+			time.Sleep(time.Duration(taskStateCheckTimeoutSec) * time.Second)
+			taskStateCheckTimeoutChan <- true
+		}()
+		go func() {
+			for {
+				select {
+				case worker := <-registerChan:
+					workerChan <- worker
+				}
+			}
+		}()
+
+		// ioloop start
+		reduceLoop:
+		for {
+			select {
+			case worker := <- workerChan:
+				for t := 0; t < ntasks; t++ {
+					task := strconv.Itoa(t)
+					if taskState.Get(task) == "idle" {
+						taskState.Set(task, "waiting")
+						args := DoTaskArgs{JobName: jobName, File: "",
+						Phase: reducePhase, TaskNumber: t, NumOtherPhase: n_other}
+
+						// rpc:
+						// 1) the worker may have executed it but the reply was lost
+						// 2) the worker may still be executing but the master's RPC timed out
+						go func() {
+							taskState.Set(task, "running")
+							suc := call(worker, "Worker.DoTask", args, nil)
+							if suc {
+								taskState.Set(task, "done")
+							} else {
+								taskState.Set(task, "idle")
+							}
+							registerChan <- worker
+						}()
+						break
+					}
+				}
+			case <- taskStateCheckTimeoutChan:
+				counter := 0
+				for t := 0; t < ntasks; t++ {
+					task := strconv.Itoa(t)
+					if taskState.Get(task) == "done" {
+						counter ++
+					}
+				}
+				if counter == ntasks {
+					break reduceLoop
+				}
+				go func() {
+					time.Sleep(time.Duration(taskStateCheckTimeoutSec) * time.Second)
+					taskStateCheckTimeoutChan <- true
+				}()
+			}
+		}
+	}
+}
+
+type SafeState struct {
+	v   map[string]string
+	mux sync.Mutex
+}
+
+func (s *SafeState) Set(key string, val string) {
+	s.mux.Lock()
+	s.v[key] = val
+	s.mux.Unlock()
+}
+
+func (s *SafeState) Get(key string) string {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.v[key]
 }
