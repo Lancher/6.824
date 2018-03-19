@@ -93,10 +93,12 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 							suc := call(worker, "Worker.DoTask", args, nil)
 							if suc {
 								taskState.Set(task, "done")
+								registerChan <- worker
 							} else {
 								taskState.Set(task, "idle")
+								time.Sleep(10 * time.Second)
+								registerChan <- worker
 							}
-							registerChan <- worker
 						}()
 						break
 					}
@@ -168,10 +170,12 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 							suc := call(worker, "Worker.DoTask", args, nil)
 							if suc {
 								taskState.Set(task, "done")
+								registerChan <- worker
 							} else {
 								taskState.Set(task, "idle")
+								time.Sleep(10 * time.Second)
+								registerChan <- worker
 							}
-							registerChan <- worker
 						}()
 						break
 					}
@@ -196,6 +200,7 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	}
 }
 
+// the best way to use mutex!!!!
 type SafeState struct {
 	v   map[string]string
 	mux sync.Mutex
