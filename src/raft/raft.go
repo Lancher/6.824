@@ -426,10 +426,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 													rf.votes = 0
 													// leader send append entries to all peers
 													go func() {
-														// wait 200 milli sec
-														select {
-														case <-time.After(time.Duration(150) * time.Millisecond):
-														}
 														// send append entries
 														rf.mu.Lock()
 														rf.lAppendEntriesTimeoutID++
@@ -514,10 +510,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 													rf.votes = 0
 													// leader send append entries to all peers
 													go func() {
-														// wait 200 milli sec
-														select {
-														case <-time.After(time.Duration(150) * time.Millisecond):
-														}
 														// send append entries
 														rf.mu.Lock()
 														rf.lAppendEntriesTimeoutID++
